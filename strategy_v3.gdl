@@ -1,0 +1,215 @@
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;        					Legal2s	     	 			   ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; --------------------- Play moves ---------------------- ;;;
+
+;;;
+;;; In the strategy, it is legal for a player to play a card
+;;; at a position in their hand if they know that it is
+;;; going to be a successful play.
+;;;
+(<= (legal2 ?player (play ?pos))
+	(legal ?player (play ?pos))
+	(knows ?player (has_correct_play ?player ?pos))
+)
+
+;;;
+;;; Determines whether a player has a correct playable card
+;;; at a particular position in their hand
+;;;
+(<= (has_correct_play ?player ?pos)
+	(true (hand ?player ?pos (card ?colour ?number)))
+	(true (stacksize ?colour ?previous))
+	(succ ?previous ?number)
+)
+
+;;; --------------------- Discard moves --------------------- ;;;
+
+;;;
+;;; It is also a good move to discard a card that the player
+;;; knows is a dead card where it won't ever be a successful
+;;; play.
+;;;
+
+(<= (legal2 ?player (discard ?pos))
+	(legal ?player (discard ?pos))
+	(not (has_legal_play ?player))
+	(knows ?player (has_dead_card ?player ?pos))
+)
+
+;;;
+;;; Predicate for determining if a player has a successful play
+;;; move at any position.
+;;;
+(<= (has_legal_play ?player)
+	(position ?pos)
+	(knows ?player (has_correct_play ?player ?pos))
+)
+
+;;;
+;;; Predicate for determining if a player knows a card is a
+;;; dead card based on the complete knowledge the player
+;;; has about that card.
+;;;
+(<= (has_dead_card ?player ?pos)
+	(true (hand ?player ?pos (card ?colour ?number)))
+	(true (stacksize ?colour ?current))
+	(not (greaterthan ?number ?current))
+	(not cancelled)	
+)
+
+;;;
+;;; Predicate for determining if one number is less than another
+;;; number based on the assumed succ definitions
+;;;
+(<= (greaterthan ?x ?y)
+	(or (succ ?y ?x)
+		(and (succ ?w ?x)
+			 (greaterthan ?w ?y)
+		)
+	)
+)
+
+;;;
+;;; It's legal to discard a card if there are no strategy legal
+;;; play, discard or hint moves and no players have unknown cards
+;;;
+(<= (legal2 ?player (discard ?pos))
+	(legal ?player (discard ?pos))
+	(not (has_legal_play ?player))
+	(not (has_legal_discard ?player))
+	(not (has_legal_hint_num ?player))
+	(not (has_unknown_card ?player))
+	(knows_highest_card ?player ?pos ?number)
+)
+
+;;;
+;;; Predicate for determining whether any players have an unknown
+;;; card or not
+;;;
+(<= (has_unknown_cards)
+	(role ?player)
+	(has_unknown_card ?player)
+)
+
+;;;
+;;; Predicate for determining whether a player has an unknown
+;;; card or not.
+;;;
+(<= (has_unknown_card ?player)
+	(position ?pos)
+	(true (hand ?player ?pos (card ?colour ?number)))
+	(not (knows ?player (hand ?player ?pos (card ?colour ?number))))
+)
+
+;;;
+;;; Determines whether a player has a correct playable card
+;;; at a particular position in their hand
+;;;
+(<= (knows_highest_card ?player ?pos ?number)
+	(knows ?player (hand ?player ?pos (card ?colour ?number)))
+	(position ?pos2)
+	(not (knows_higher_card ?player ?pos2 ?pos))
+)
+
+;;;
+;;; Determines whether a player has a correct playable card
+;;; at a particular position in their hand
+;;;
+(<= (knows_higher_card ?player ?pos2 ?pos)
+	(knows ?player (hand ?player ?pos (card ?colour ?number)))
+	(knows ?player (hand ?player ?pos2 (card ?colour2 ?number2)))
+	(distinct ?pos ?pos2)
+	(greaterthan ?number2 ?number)
+)
+
+;;; ---------------------- Hint moves ---------------------- ;;;
+
+;;;
+;;; Strategic move for a player to give a hint to another player
+;;; about the number of a playable card they don't yet know about.
+;;;
+(<= (legal2 ?player (hint ?player1 ?number))
+	(legal ?player (hint ?player1 ?number))
+	(nextPlayer ?player1 ?player)
+	(true (hand ?player1 ?pos (card ?colour ?number)))
+	(not (has_legal_play ?player))
+	(not (has_legal_discard ?player))
+	(has_correct_play ?player1 ?pos)
+)
+
+;;;
+;;; Predicate for determining if there's a good discard move
+;;; available where the card is a dead card.
+;;;
+(<= (has_legal_discard ?player)
+	(legal ?player (discard ?pos))
+	(position ?pos)
+	(knows ?player (has_dead_card ?player ?pos))
+)
+
+;;;
+;;; Strategic move for a player to give a hint to another player
+;;; about the colour of a playable card they don't yet know about.
+;;;
+(<= (legal2 ?player (hint ?player1 ?colour))
+	(legal ?player (hint ?player1 ?colour))
+	(cardCol ?colour)
+	(not (has_legal_play ?player))
+	(not (has_legal_discard ?player))
+	(not (has_legal_hint_num ?player))
+	(has_unknown_card ?player1)
+)
+
+;;;
+;;; Predicate for determining whether a player has a strategic
+;;; hint for a number.
+;;;
+(<= (has_legal_hint_num ?player)
+	(cardNum ?number)
+	(legal ?player (hint ?player1 ?number))
+	(nextPlayer ?player1 ?player)
+	(distinct ?player ?player1)
+	(has_correct_play ?player1 ?pos)
+)
+
+;;; ---------------------- Non-strategy ---------------------- ;;;
+
+;;;
+;;; It is legal in the strategy for a player to discard a card
+;;; if there are no more clue tokens and if the card isn't
+;;; going to be a successful play.
+;;;
+(<= (legal2 ?player (discard ?pos))
+	(legal ?player (discard ?pos))
+	(not (has_legal_hint_num ?player))
+	(not (has_legal_hint_col ?player))
+	(not (has_legal_play ?player))
+	(not (has_legal_discard ?player))
+)
+
+;;;
+;;; Predicate for determining whether a player has a strategic
+;;; hint for a number.
+;;;
+(<= (has_legal_hint_col ?player)
+	(legal ?player (hint ?player1 ?colour))
+	(cardCol ?colour)
+	(has_unknown_card ?player1)
+)
+
+(<= (legal2 ?player (hint ?player1 none))
+	(legal ?player (hint ?player1 none))
+	(not (legal ?player (play ?pos)))
+	(not (legal ?player (discard ?pos)))
+)
+
+(<= (legal2 ?player noop)
+	(legal ?player noop)
+)
+
+(<= (legal2 random ?action)
+	(legal random ?action)
+)

@@ -1,0 +1,951 @@
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;        					Statics     	 			   ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;
+;;; Defining the roles within the game where there
+;;; are 5 players and a random element for drawing
+;;; cards randomly from the deck
+;;;
+(role random)
+(role player1)
+(role player2)
+;(role player3)
+;(role player4)
+;(role player5)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;   					Setup predicates   					;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;
+;;; Defining the succession of turns between players.
+;;; random starts first to deal all the cards and then
+;;; will pass the turn to player 1
+;;;
+(nextPlayer player2 player1)
+;(nextPlayer player3 player2)
+;(nextPlayer player4 player3)
+;(nextPlayer player5 player4)
+(nextPlayer player1 player2)
+
+;;; Defining the 5 colours that cards can have
+(cardCol ukn)
+(cardCol red)
+(cardCol grn)
+;(cardCol blu)
+;(cardCol ylw)
+;(cardCol wht)
+
+;;; Defining the 5 numbers that cards can have
+(cardNum ukn)
+(cardNum 1)
+(cardNum 2)
+;(cardNum 3)
+;(cardNum 4)
+;(cardNum 5)
+
+;;; Determining if a property is either a card colour or number
+(<= (property ?prop)
+	(or (cardCol ?prop) 
+		(cardNum ?prop)
+	)
+)
+
+;;; The starting card value representing no card in a player's hand 
+(card none)
+
+;;; Predicate for identifying a valid card from its two card properties
+(<= (card ?colour ?number)
+	(cardCol ?colour)
+	(cardNum ?number)
+)
+
+;;; The available positions in a player's hand that can hold a card
+(position 1)
+;(position 2)
+;(position 3)
+;(position 4)
+;(position 5)
+
+(maxscore 4)
+(maxdeck 4)
+(maxclue 4)
+(maxfuse 3)
+
+(cardCount 1 1)
+(cardCount 2 1)
+;(cardCount 3 1)
+;(cardCount 4 1)
+;(cardCount 5 1)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;   					Init predicates  		  		   ;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(init (phase shuffle_deck))						; random first adds random cards to the deck
+(init (control random))							; random starts to deal cards
+(init (shuffledtop 0))							; The game deck is initially awaiting shuffling
+(init (stacktotal 0))							; The total of ach colour's stack levels
+(<= (init (decksize ?x)) (maxdeck ?x))			; The starting deck size
+(<= (init (tokens fuse ?x)) (maxfuse ?x))		; Fuse tokens for incorrect plays
+(<= (init (tokens clue ?x)) (maxclue ?x))		; Clue tokens for giving hints
+
+;;; Setting initial deck count for each card
+(<= (init (deckcount ?colour ?number ?x)) (cardCount ?number ?x) (cardCol ?colour) (distinct ?colour ukn))
+
+;;; Initializing the fireworks stack
+(<= (init (stacksize ?colour 0)) (cardCol ?colour) (distinct ?colour ukn))
+
+;;; Initialize the card at each hand position of each player to ukn
+(<= (init (hand ?player ?position (card none)))
+	(role ?player)
+	(distinct ?player random)
+	(position ?position)
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;   					Sees predicates   					;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; ------------------ Random Initial Shuffle ------------------ ;;;
+
+;;;
+;;; The player sees a shuffle percept when the random is adding
+;;; cards to the shuffled deck during the shuffle_deck phase.
+;;;
+(<= (sees ?player (does random (shuffle (card ukn ukn))))
+	(card ?colour ?number)
+	(does random (shuffle (card ?colour ?number)))
+	(role ?player)
+	(distinct ?player random)
+)
+
+;;;
+;;; The player will then see the percept for when the shuffle
+;;; phase is complete.
+;;;
+(<= (sees ?player (does random complete_shuffle))
+	(does random complete_shuffle)
+	(role ?player)
+	(distinct ?player random)
+)
+
+;;; ------------------ Random Initial Deal ------------------ ;;;
+
+;;;
+;;; When a player is dealt a card during the deal_hands phase,
+;;; all other players except that player will see what card it is.
+;;;
+(<= (sees ?player1 (does random (deal ?player2 ?pos (card ?col ?num))))
+	(position ?pos)
+	(card ?col ?num)
+	(does random (deal ?player2 ?pos (card ?col ?num)))
+	(role ?player1)
+	(distinct ?player1 random)
+	(distinct ?player1 ?player2)
+)
+
+;;;
+;;; When a player is dealt a card during the deal_hands phase,
+;;; it will see an ukn card being dealt to it.
+;;;
+(<= (sees ?player (does random (deal ?player ?pos (card ukn ukn))))
+	(position ?pos)
+	(card ?col ?num)
+	(does random (deal ?player ?pos (card ?col ?num)))
+	(role ?player)
+	(distinct ?player random)
+)
+
+;;;
+;;; The player will then see the percept for when the deal_hands
+;;; phase is complete.
+;;;
+(<= (sees ?player (does random complete_deal))
+	(does random complete_deal)
+	(role ?player)
+	(distinct ?player random)
+)
+
+;;; ------------------ Player Moves ------------------ ;;;
+
+;;;
+;;; All players will see the move when a player attempts to
+;;; play a card from their hand to the stack. The player
+;;; who played it will be able to see what card it is.
+;;;
+(<= (sees ?player1 (does ?player2 (play ?pos (card ?col ?num))))
+	(does ?player2 (play ?pos))
+	(true (hand ?player2 ?pos (card ?col ?num)))
+	(role ?player1)
+	(distinct ?player1 random)
+)
+
+;;;
+;;; All players will see the move when a player discards a
+;;; card. That player will be able to see what card it is.
+;;;
+(<= (sees ?player1 (does ?player2 (discard ?pos (card ?col ?num))))
+	(does ?player2 (discard ?pos))
+	(true (hand ?player2 ?pos (card ?col ?num)))
+	(role ?player1)
+	(distinct ?player1 random)
+)
+
+;;;
+;;; All players will be able to percieve a hint move as it
+;;; is a form of public communication. When a player hints a
+;;; property in another player's hand, everyone will get a 
+;;; percept for each position where the card at that position
+;;; matches the property being hinted.
+;;; 
+(<= (sees ?player1 (does ?player2 (hint ?player3 ?property ?pos)))
+	(does ?player2 (hint ?player3 ?property))
+	(or (true (hand ?player3 ?pos (card ?property ?number)))
+		(true (hand ?player3 ?pos (card ?colour ?property)))
+	)
+	(role ?player1)
+	(distinct ?player1 random)
+)
+
+;;;
+;;; Extra predicate for the actual hint move for updating
+;;; the clue tokens
+;;; 
+(<= (sees ?player1 (does ?player2 (hint ?player3 ?property)))
+	(does ?player2 (hint ?player3 ?property))
+	(role ?player1)
+	(distinct ?player1 random)
+)
+
+;;; --------------- Refil Hand After Move ----------------- ;;;
+
+;;;
+;;; When a player is dealt a new card after playing or discarding,
+;;; all other players except that player will see what card it is.
+;;;
+(<= (sees ?player1 (does random (deal ?player2 ?pos (card ?col ?num))))
+	(or (does ?player2 (play ?pos))
+		(does ?player2 (discard ?pos))
+	)
+	(true (shuffledtop ?x))
+	(distinct ?x 0)
+	(true (shuffled_position (card ?col ?num) ?x))
+	
+	(role ?player1)
+	(distinct ?player1 random)
+	(distinct ?player1 ?player2)
+)
+
+;;;
+;;; When a player is dealt a new card after playing or discarding,
+;;; it will see an ukn card being dealt to it.
+;;;
+(<= (sees ?player (does random (deal ?player ?pos (card ukn ukn))))
+	(or (does ?player (play ?pos))
+		(does ?player (discard ?pos))
+	)
+	(true (shuffledtop ?x))
+	(distinct ?x 0)
+
+	(role ?player)
+	(distinct ?player random)
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;   					Next predicates   					;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; ----------------------- Phase ----------------------- ;;;
+
+;;;
+;;; The game starts in a shuffle_deck phase where random will
+;;; continuously and randomly add cards from the deck to a
+;;; new shuffled deck which is then used to play out the game.
+;;;
+(<= (next (phase shuffle_deck))
+	(true (phase shuffle_deck))
+	(not (true (decksize 0)))
+)
+
+;;;
+;;; The phase after shuffling is deal_hands phase where random will
+;;; continuously deal cards to each player until they have the
+;;; max hand size number of cards in their hand.
+;;;
+(<= (next (phase deal_hands))
+	(true (phase shuffle_deck))
+	(true (decksize 0))
+)
+
+;;;
+;;; The deal_hands phase continues until all players have the
+;;; max hand size number of cards in their hand.
+;;;
+(<= (next (phase deal_hands))
+	(true (phase deal_hands))
+	(not_full_hands)
+)
+
+;;;
+;;; When the last card is drawn from the shuffled deck, then this
+;;; would be the final round where each player has one more move.
+;;;
+(<= (next (phase final_round))
+	(true (decksize 0))
+	(true (shuffledtop 0))
+)
+
+;;;
+;;; The player will have had their final turn when they make a move
+;;; during the final round where the shuffled deck is empty
+;;;
+(<= (next (final_turn ?player))
+	(true (decksize 0))
+	(true (shuffledtop 0))
+	(true (control ?player))
+	(distinct ?player random)
+)
+
+;;;
+;;; The final turn property remains to a player once they played
+;;; their last move.
+;;;
+(<= (next (final_turn ?player))
+	(true (final_turn ?player))
+	(true (phase final_round))
+)
+
+;;; ----------------------- Control ----------------------- ;;;
+
+;;;
+;;; Random gets control until the initial setup phases are
+;;; over and each player has a full hand.
+;;;
+(<= (next (control random))
+	(or (true (phase shuffle_deck))
+		(true (phase deal_hands))
+	)
+	(not_full_hands)
+)
+
+;;;
+;;; Predicate for determining if there are any players that
+;;; don't yet have full hands.
+;;;
+(<= (not_full_hands)
+	(position ?position)
+	(role ?player)
+	(distinct ?player random)
+	(true (hand ?player ?position (card none)))
+)
+
+;;;
+;;; When the random has dealt the last card to complete all
+;;; players' hands during the deal_hands phase, the control
+;;; will shift to the starting player.
+;;;
+(<= (next (control player1))
+	(true (control random))
+	(true (phase deal_hands))
+	(does random complete_deal)
+)
+
+;;;
+;;; In the case where a player merely gives a hint, there is no
+;;; need for dealing a new card so the control will just move
+;;; on to the next player.
+;;;
+(<= (next (control ?player2))
+	(true (control ?player1))
+	(nextPlayer ?player2 ?player1)
+)
+
+;;; ----------------------- Decksize ----------------------- ;;;
+
+;;;
+;;; Decreases the deck size by 1 whenever the random player
+;;; deals a card from the deck.
+;;;
+(<= (next (decksize ?x))
+	(does random (shuffle (card ?colour ?number)))
+	(true (decksize ?y))
+	(succ ?x ?y)
+)
+
+;;;
+;;; Decksize stays the same when random doesn't
+;;; deal cards from the deck
+;;;
+(<= (next (decksize ?x))
+	(true (decksize ?x))
+	(not (does random (shuffle (card ?colour ?number))))
+)
+
+;;; ----------------------- Deckcount ----------------------- ;;;
+
+;;;
+;;; Decreases the number of a particular card remaining in
+;;; the deck when the random player draws it.
+;;;
+(<= (next (deckcount ?colour ?number ?x))
+	(does random (shuffle (card ?colour ?number)))
+	(true (deckcount ?colour ?number ?y))
+	(succ ?x ?y)
+)
+
+;;;
+;;; Decksize stays the same when random doesn't
+;;; deal cards from the deck
+;;;
+(<= (next (deckcount ?colour ?number ?x))
+	(true (deckcount ?colour ?number ?x))
+	(not (does random (shuffle (card ?colour ?number))))
+)
+
+;;; ---------------------- Shuffle top ------------------- ;;;
+
+;;;
+;;; Increases the shuffled deck count every time the random
+;;; adds a random card to the top of the shuffled deck
+;;;
+(<= (next (shuffledtop ?x))
+	(does random (shuffle (card ?colour ?number)))
+	(true (shuffledtop ?y))
+	(succ ?y ?x)
+)
+
+;;;
+;;; The shuffled deck top stays the same when no one does
+;;; any moves that add or remove cards from it.
+;;;
+(<= (next (shuffledtop ?x))
+	(true (shuffledtop ?x))
+	(not (does random (shuffle (card ?colour ?number))))
+	(not (does random (deal ?player ?position (card ?colour ?number))))
+	(not (does ?player (play ?position)))
+	(not (does ?player (discard ?position)))
+	(not (does ?player (play ?position (card ?colour ?number))))
+	(not (does ?player (discard ?position (card ?colour ?number))))
+)
+
+;;;
+;;; The shuffled deck top decreases when a player plays or
+;;; discards a card because the game will immediately deal
+;;; the top card to that player.
+;;;
+(<= (next (shuffledtop ?x))
+	(role ?player)
+	(card ?colour ?number)
+	(position ?position)
+	(or (does random (deal ?player ?position (card ?colour ?number)))
+		(does ?player (play ?position))
+		(does ?player (discard ?position))
+		(does ?player (play ?position (card ?colour ?number)))
+		(does ?player (discard ?position (card ?colour ?number)))
+	)
+	(true (shuffledtop ?y))
+	(succ ?x ?y)
+)
+
+;;;
+;;; The shuffledtop will remain empty during the final
+;;; round of the game.
+;;;
+(<= (next (shuffledtop 0))
+	(true (shuffledtop 0))
+	(true (decksize 0))
+)
+
+;;; -------------------- Shuffled Position ------------------- ;;;
+
+;;;
+;;; The shuffled position of each card is recorded when the
+;;; random adds that card to the current top of the shuffled
+;;; deck during the shuffle phase.
+;;;
+(<= (next (shuffled_position (card ?colour ?number) ?x))
+	(does random (shuffle (card ?colour ?number)))
+	(true (shuffledtop ?y))
+	(succ ?y ?x)
+)
+
+;;;
+;;; Once placed, the position of a card in the shuffled deck
+;;; will remain fixed for the duration of the game and the
+;;; shuffletop variable determines the current top of the deck.
+;;;
+(<= (next (shuffled_position (card ?colour ?number) ?x))
+	(true (shuffled_position (card ?colour ?number) ?x))
+	(succ ?y ?x)
+)
+
+;;; ------------------------- Hand ----------------------- ;;;
+
+;;;
+;;; The card at a certain position in a player's hand is set
+;;; to the card properties that the random deals to that
+;;; player's hand during the deal_hands phase
+;;;
+(<= (next (hand ?player ?position (card ?colour ?number)))
+	(does random (deal ?player ?position (card ?colour ?number)))
+)
+
+;;;
+;;; If a player has a none card during the deal hands phase, it
+;;; will remain the none card if the dealer doesn't deal an
+;;; actual card to that player's hand position
+;;;
+(<= (next (hand ?player ?position (card none)))
+	(true (hand ?player ?position (card none)))
+	(not (does random (deal ?player ?position (card ?colour ?number))))
+)
+
+;;;
+;;; When the player has an actual card in a particular position
+;;; in their hand, it will remain the same if the moves that
+;;; interact with it are not made.
+;;;
+(<= (next (hand ?player ?position (card ?colour ?number)))
+	(true (hand ?player ?position (card ?colour ?number)))
+	(not (does random (deal ?player ?position (card ?colour1 ?number1))))
+	(not (does ?player (play ?position)))
+	(not (does ?player (discard ?position)))
+	(not (does ?player (play ?position (card ?colour ?number))))
+	(not (does ?player (discard ?position (card ?colour ?number))))
+)
+
+;;;
+;;; When a player plays or discards a card at a particular position
+;;; in their hand, the next value of the card in that position will
+;;; be the card at the top of the shuffled deck, as if a new card
+;;; was being dealt to that position.
+;;;
+(<= (next (hand ?player ?position (card ?colour ?number)))
+	(or (does ?player (play ?position))
+		(does ?player (discard ?position))
+	)
+	(true (shuffledtop ?x))
+	(distinct ?x 0)
+	(true (shuffled_position (card ?colour ?number) ?x))
+)
+
+;;; ----------------------- Stacksize ----------------------- ;;;
+
+;;;
+;;; Increases the level of the fireworks stack of the given
+;;; colour if a player plays a card of the same colour that
+;;; is the next number above the current stack level.
+;;;
+(<= (next (stacksize ?colour ?x))
+	(correct_play ?colour ?x)
+)
+
+;;;
+;;; The stack size stays the same when there isn't a correct
+;;; play event.
+;;;
+(<= (next (stacksize ?colour ?y))
+	(true (stacksize ?colour ?y))
+	(not (correct_play ?colour ?x))
+)
+
+;;; 
+;;; Describes the correct play event where a player plays a
+;;; card of a certain colour and the stack for that colour has
+;;; the card number that is one less than the played card.
+;;; Otherwise it is an incorrect play.
+;;;
+(<= (correct_play ?colour ?number)
+	(does ?player (play ?position))
+	(true (hand ?player ?position (card ?colour ?number)))
+	(true (stacksize ?colour ?previous))
+	(succ ?previous ?number)
+)
+
+;;;
+;;; Extra predicate for handling percept version
+;;;
+(<= (correct_play ?colour ?number)
+	(role ?player)
+	(position ?position)
+	(does ?player (play ?position (card ?colour ?number)))
+	(true (stacksize ?colour ?previous))
+	(succ ?previous ?number)
+)
+
+;;; ----------------------- Stacktotal ----------------------- ;;;
+
+;;;
+;;; The stacktotal keeps track of the sum of the stack levels of
+;;; all colours whenever a player makes a correct play.
+;;;
+(<= (next (stacktotal ?x))
+	(card ?colour ?number)
+	(correct_play ?colour ?number)
+	(true (stacktotal ?y))
+	(succ ?y ?x)
+)
+
+;;;
+;;; The stacktotal remains the same for any turns where a correct
+;;; play is not made;
+;;;
+(<= (next (stacktotal ?y))
+	(true (stacktotal ?y))
+	(not (correct_play ?colour ?number))
+)
+
+;;; ----------------------- Tokens Clue ----------------------- ;;;
+
+;;;
+;;; Increases the number of clue tokens available whenever
+;;; a player discards a card.
+;;;
+(<= (next (tokens clue ?x))
+	(does ?player (discard ?position))
+	(true (tokens clue ?y))
+	(succ ?y ?x)
+)
+
+;;;
+;;; Extra predicate for handling the percept version
+;;;
+(<= (next (tokens clue ?x))
+	(does ?player (discard ?position (card ?col ?num)))
+	(true (tokens clue ?y))
+	(succ ?y ?x)
+)
+
+;;;
+;;; Decreases the number of clue tokens available whenever
+;;; a player gives a hint.
+;;;
+(<= (next (tokens clue ?x))
+	(does ?player1 (hint ?player2 ?property))
+	(distinct ?player1 ?player2)
+	(true (tokens clue ?y))
+	(succ ?x ?y)
+)
+
+;;;
+;;; The number of clue tokens stays the same when there is
+;;; no hint or discard event which affects the clue token count.
+;;;
+(<= (next (tokens clue ?y))
+	(true (tokens clue ?y))
+	(not (does ?player (discard ?position)))
+	(not (does ?player (discard ?position (card ?col ?num))))
+	(not (does ?player1 (hint ?player2 ?property)))
+)
+
+;;; ----------------------- Tokens Fuse ----------------------- ;;;
+
+;;;
+;;; Decreases the number of fuse tokens available whenever
+;;; a player plays a card incorrectly where it doesn't
+;;; fit on the fireworks stack.
+;;;
+(<= (next (tokens fuse ?x))
+	(incorrect_play)
+	(true (tokens fuse ?y))
+	(succ ?x ?y)
+)
+
+;;;
+;;; The number of fuse tokens stays the same when there is
+;;; no incorrect play event which affects the fuse token count.
+;;;
+(<= (next (tokens fuse ?y))
+	(true (tokens fuse ?y))
+	(not (incorrect_play))
+)
+
+;;; 
+;;; Describes the incorrect play event which is just the
+;;; inverse of the correct play event where the number of the
+;;; current stack card and the played card are not consecutive.
+;;;
+(<= (incorrect_play)
+	(role ?player)
+	(position ?position)
+	(card ?colour ?number)
+	(does ?player (play ?position))
+	(true (hand ?player ?position (card ?colour ?number)))
+	(true (stacksize ?colour ?previous))
+	(not (succ ?previous ?number))
+)
+
+;;;
+;;; Extra predicate for the percept version
+;;;
+(<= (incorrect_play)
+	(role ?player)
+	(position ?position)
+	(card ?colour ?number)
+	(does ?player (play ?position (card ?colour ?number)))
+	(true (stacksize ?colour ?previous))
+	(not (succ ?previous ?number))
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;   					Legal predicates   					;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;; ----------------------- Random ----------------------- ;;;
+
+;;;
+;;; At the very start of the game and after
+;;; a player discards or plays a card the random
+;;; player can then deal cards to that player until
+;;; they have 5 cards in their hand
+;;;
+(<= (legal random (shuffle (card ?colour ?number)))
+	(true (phase shuffle_deck))
+	(true (control random))
+	(card ?colour ?number)
+	(distinct ?colour ukn)
+	(distinct ?number ukn)
+	(not (true (decksize 0)))
+	(not (true (deckcount ?colour ?number 0)))
+)
+
+;;;
+;;; The action of dealing cards from the top of a shuffled
+;;; deck where the card can only be dealt to fill an empty
+;;; slot signified by (card none)
+;;;
+(<= (legal random (deal ?player ?position (card ?colour ?number)))
+	(true (phase deal_hands))
+	(true (control random))
+	(true (shuffledtop ?x))
+	(distinct ?x 0)
+	(role ?player)
+	(distinct ?player random)
+	(true (shuffled_position (card ?colour ?number) ?x))
+	(true (hand ?player ?position (card none)))
+)
+
+;;;
+;;; During other players' turn, the random will do
+;;; a noop but will gain control in the next turn
+;;; if they do a discard or play
+;;;
+(<= (legal ?player noop)
+	(role ?player)
+	(not (true (control ?player)))
+)
+
+;;;
+;;; This is a one off move for when the random has
+;;; finished randomly adding all the cards to a shuffled
+;;; deck during the shuffle_deck phase and will signal complete
+;;;
+(<= (legal random complete_shuffle)
+	(true (phase shuffle_deck))
+	(true (control random))
+	(true (decksize 0))
+)
+
+;;;
+;;; This is a one off move for when the random has
+;;; finished dealing all the cards to players in the
+;;; deal_hands phase and will signal complete
+;;;
+(<= (legal random complete_deal)
+	(true (phase deal_hands))
+	(true (control random))
+	(true (decksize 0))
+	(not (not_full_hands))
+)
+
+;;; ----------------------- Players ----------------------- ;;;
+
+;;;
+;;; Indicates that it is legal for a player to try to play
+;;; a card to the fireworks stack if it is their turn and
+;;; they have that card in their hand.
+;;;
+(<= (legal ?player (play ?position))
+	(true (control ?player))
+	(distinct ?player random)
+	(position ?position)
+	(card ?colour ?number)
+	(true (hand ?player ?position (card ?colour ?number)))
+)
+
+;;;
+;;; Indicates that it is legal for a player to discard a
+;;; card if it is their turn and only if there are tokens 
+;;; to gain up to a maximum of 8
+;;;
+(<= (legal ?player (discard ?position))
+	(maxclue ?x)
+	(not (true (tokens clue ?x)))
+	(true (control ?player))
+	(distinct ?player random)
+	(position ?position)
+	(card ?colour ?number)
+	(true (hand ?player ?position (card ?colour ?number)))
+)
+
+;;;
+;;; A player can give a hint to another player
+;;; as long as there are clue tokens available
+;;; and that at least one card of the same colour/number
+;;; property specified by the hinter is in the hinted player's
+;;; hand.
+;;;
+(<= (legal ?player1 (hint ?player2 ?property))
+	(not (true (tokens clue 0)))
+	(true (control ?player1))
+	(role ?player2)
+	(distinct ?player1 random)
+	(distinct ?player2 random)
+	(distinct ?player2 ?player1)
+	(property ?property)
+	(position ?pos)
+	(card ?colour ?number)
+	(or (true (hand ?player2 ?pos (card ?property ?number)))
+		(true (hand ?player2 ?pos (card ?colour ?property)))
+	)
+)
+
+;;;
+;;; A player can give a hint of none to a player that doesn't
+;;; have any cards in their hand. This is usually to allow
+;;; hint moves during the final phase of the game
+;;;
+(<= (legal ?player1 (hint ?player2 none))
+	(not (true (tokens clue 0)))
+	(true (control ?player1))
+	(role ?player2)
+	(distinct ?player1 random)
+	(distinct ?player2 random)
+	(distinct ?player2 ?player1)
+	(not (has_cards_in_hand ?player2))
+)
+
+(<= (has_cards_in_hands)
+	(role ?player)
+	(has_cards_in_hand ?player)
+)
+
+(<= (has_cards_in_hand ?player)
+	(true (hand ?player ?pos (card ?property ?number)))
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;   					Terminal predicates 	  			;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;
+;;; Game ends when all 3 fuse tokens have been lost
+;;;
+(<= terminal
+	(true (tokens fuse 0))
+)
+
+;;;
+;;; Game ends when the last card is drawn from the deck.
+;;; This is a simplified version of the original game
+;;; where each player would have one last turn.
+;;;
+; (<= terminal
+; 	(role ?player)
+; 	(true (phase final_round))
+; 	(true (control ?player))
+; 	(true (final_turn ?player))
+; )
+
+(<= terminal
+	(true (control ?player))
+	(distinct ?player random)
+	(not (has_cards_in_hand ?player))
+	(not (legal ?player (hint ?player1 ?property)))
+)
+
+;;;
+;;; The game also ends when all the stacks are filled
+;;; where all the players win with maximum score
+;;;
+(<= terminal
+	(true (stacktotal ?x))
+	(maxscore ?x)
+)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;   					Goal predicates   	 				;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;
+;;; Everyone loses if the fuses are lost
+;;;
+(<= (goal ?player 0)
+	(role ?player)
+	(true (tokens fuse 0))
+)
+
+;;;
+;;; Otherwise the goal value is the total of the firework
+;;; stack that was achieved up to the terminal stage.
+;;;
+(<= (goal ?player ?x)
+	(role ?player)
+	(not (true (tokens fuse 0)))
+	(true (stacktotal ?x))
+)
+
+;;; Predicates for sequencual progression and counting
+(succ 0 1)
+(succ 1 2)
+(succ 2 3)
+(succ 3 4)
+(succ 4 5)
+(succ 5 6)
+(succ 6 7)
+(succ 7 8)
+(succ 8 9)
+(succ 9 10)
+(succ 10 11)
+(succ 11 12)
+(succ 12 13)
+(succ 13 14)
+(succ 14 15)
+(succ 15 16)
+(succ 16 17)
+(succ 17 18)
+(succ 18 19)
+(succ 19 20)
+(succ 20 21)
+(succ 21 22)
+(succ 22 23)
+(succ 23 24)
+(succ 24 25)
+(succ 25 26)
+(succ 26 27)
+(succ 27 28)
+(succ 28 29)
+(succ 29 30)
+(succ 30 31)
+(succ 31 32)
+(succ 32 33)
+(succ 33 34)
+(succ 34 35)
+(succ 35 36)
+(succ 36 37)
+(succ 37 38)
+(succ 38 39)
+(succ 39 40)
+(succ 40 41)
+(succ 41 42)
+(succ 42 43)
+(succ 43 44)
+(succ 44 45)
+(succ 45 46)
+(succ 46 47)
+(succ 47 48)
+(succ 48 49)
+(succ 49 50)
