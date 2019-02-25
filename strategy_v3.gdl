@@ -13,7 +13,7 @@
 ;;; going to be a successful play.
 ;;;
 (<= (ep_legal ?player (play ?pos))
-	(legal ?player (play ?pos))
+	(src_legal ?player (play ?pos))
 	(knows ?player (has_correct_play ?player ?pos))
 )
 
@@ -36,7 +36,7 @@
 ;;;
 
 (<= (ep_legal ?player (discard ?pos))
-	(legal ?player (discard ?pos))
+	(src_legal ?player (discard ?pos))
 	(not (has_legal_play ?player))
 	(knows ?player (has_dead_card ?player ?pos))
 )
@@ -79,7 +79,7 @@
 ;;; play, discard or hint moves and no players have unknown cards
 ;;;
 (<= (ep_legal ?player (discard ?pos))
-	(legal ?player (discard ?pos))
+	(src_legal ?player (discard ?pos))
 	(not (has_legal_play ?player))
 	(not (has_legal_discard ?player))
 	(not (has_legal_hint_num ?player))
@@ -134,7 +134,7 @@
 ;;; about the number of a playable card they don't yet know about.
 ;;;
 (<= (ep_legal ?player (hint ?player1 ?number))
-	(legal ?player (hint ?player1 ?number))
+	(src_legal ?player (hint ?player1 ?number))
 	(nextPlayer ?player1 ?player)
 	(true (hand ?player1 ?pos (card ?colour ?number)))
 	(not (has_legal_play ?player))
@@ -147,7 +147,7 @@
 ;;; available where the card is a dead card.
 ;;;
 (<= (has_legal_discard ?player)
-	(legal ?player (discard ?pos))
+	(src_legal ?player (discard ?pos))
 	(position ?pos)
 	(knows ?player (has_dead_card ?player ?pos))
 )
@@ -157,7 +157,7 @@
 ;;; about the colour of a playable card they don't yet know about.
 ;;;
 (<= (ep_legal ?player (hint ?player1 ?colour))
-	(legal ?player (hint ?player1 ?colour))
+	(src_legal ?player (hint ?player1 ?colour))
 	(cardCol ?colour)
 	(not (has_legal_play ?player))
 	(not (has_legal_discard ?player))
@@ -171,7 +171,7 @@
 ;;;
 (<= (has_legal_hint_num ?player)
 	(cardNum ?number)
-	(legal ?player (hint ?player1 ?number))
+	(src_legal ?player (hint ?player1 ?number))
 	(nextPlayer ?player1 ?player)
 	(distinct ?player ?player1)
 	(has_correct_play ?player1 ?pos)
@@ -185,7 +185,7 @@
 ;;; going to be a successful play.
 ;;;
 (<= (ep_legal ?player (discard ?pos))
-	(legal ?player (discard ?pos))
+	(src_legal ?player (discard ?pos))
 	(not (has_legal_hint_num ?player))
 	(not (has_legal_hint_col ?player))
 	(not (has_legal_play ?player))
@@ -197,21 +197,21 @@
 ;;; hint for a number.
 ;;;
 (<= (has_legal_hint_col ?player)
-	(legal ?player (hint ?player1 ?colour))
+	(src_legal ?player (hint ?player1 ?colour))
 	(cardCol ?colour)
 	(has_unknown_card ?player1)
 )
 
 (<= (ep_legal ?player (hint ?player1 none))
-	(legal ?player (hint ?player1 none))
-	(not (legal ?player (play ?pos)))
-	(not (legal ?player (discard ?pos)))
+	(src_legal ?player (hint ?player1 none))
+	(not (src_legal ?player (play ?pos)))
+	(not (src_legal ?player (discard ?pos)))
 )
 
 (<= (ep_legal ?player noop)
-	(legal ?player noop)
+	(src_legal ?player noop)
 )
 
 (<= (ep_legal random ?action)
-	(legal random ?action)
+	(src_legal random ?action)
 )
