@@ -2,7 +2,7 @@
 ; IMPLICIT STRATEGY
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;        		Legal2s	     	 		   ;;;
+;;;        		ep_legals	     	 		   ;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;; --------------------- Play moves ---------------------- ;;;
@@ -12,7 +12,7 @@
 ;;; at a position in their hand if they know that it is
 ;;; going to be a successful play.
 ;;;
-(<= (legal2 ?player (play ?pos))
+(<= (ep_legal ?player (play ?pos))
 	(legal ?player (play ?pos))
 	(knows ?player (has_correct_play ?player ?pos))
 )
@@ -35,7 +35,7 @@
 ;;; play.
 ;;;
 
-(<= (legal2 ?player (discard ?pos))
+(<= (ep_legal ?player (discard ?pos))
 	(legal ?player (discard ?pos))
 	(not (has_legal_play ?player))
 	(knows ?player (has_dead_card ?player ?pos))
@@ -78,7 +78,7 @@
 ;;; It's legal to discard a card if there are no strategy legal
 ;;; play, discard or hint moves and no players have unknown cards
 ;;;
-(<= (legal2 ?player (discard ?pos))
+(<= (ep_legal ?player (discard ?pos))
 	(legal ?player (discard ?pos))
 	(not (has_legal_play ?player))
 	(not (has_legal_discard ?player))
@@ -133,7 +133,7 @@
 ;;; Strategic move for a player to give a hint to another player
 ;;; about the number of a playable card they don't yet know about.
 ;;;
-(<= (legal2 ?player (hint ?player1 ?number))
+(<= (ep_legal ?player (hint ?player1 ?number))
 	(legal ?player (hint ?player1 ?number))
 	(nextPlayer ?player1 ?player)
 	(true (hand ?player1 ?pos (card ?colour ?number)))
@@ -156,7 +156,7 @@
 ;;; Strategic move for a player to give a hint to another player
 ;;; about the colour of a playable card they don't yet know about.
 ;;;
-(<= (legal2 ?player (hint ?player1 ?colour))
+(<= (ep_legal ?player (hint ?player1 ?colour))
 	(legal ?player (hint ?player1 ?colour))
 	(cardCol ?colour)
 	(not (has_legal_play ?player))
@@ -184,7 +184,7 @@
 ;;; if there are no more clue tokens and if the card isn't
 ;;; going to be a successful play.
 ;;;
-(<= (legal2 ?player (discard ?pos))
+(<= (ep_legal ?player (discard ?pos))
 	(legal ?player (discard ?pos))
 	(not (has_legal_hint_num ?player))
 	(not (has_legal_hint_col ?player))
@@ -202,16 +202,16 @@
 	(has_unknown_card ?player1)
 )
 
-(<= (legal2 ?player (hint ?player1 none))
+(<= (ep_legal ?player (hint ?player1 none))
 	(legal ?player (hint ?player1 none))
 	(not (legal ?player (play ?pos)))
 	(not (legal ?player (discard ?pos)))
 )
 
-(<= (legal2 ?player noop)
+(<= (ep_legal ?player noop)
 	(legal ?player noop)
 )
 
-(<= (legal2 random ?action)
+(<= (ep_legal random ?action)
 	(legal random ?action)
 )
